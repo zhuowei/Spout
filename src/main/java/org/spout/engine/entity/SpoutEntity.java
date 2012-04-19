@@ -81,11 +81,11 @@ public class SpoutEntity implements Entity {
 	private final AtomicReference<EntityManager> entityManagerLive;
 	private final AtomicReference<Controller> controllerLive;
 	private final AtomicReference<Chunk> chunkLive;
-	private ArrayList<AtomicReference<EntityComponent>> components = new ArrayList<AtomicReference<EntityComponent>>();
-	private AtomicBoolean observerLive = new AtomicBoolean(false);
-	private AtomicInteger health = new AtomicInteger(1), maxHealth = new AtomicInteger(1);
-	private AtomicInteger id = new AtomicInteger();
-	private AtomicInteger viewDistanceLive = new AtomicInteger();
+	private final ArrayList<AtomicReference<EntityComponent>> components = new ArrayList<AtomicReference<EntityComponent>>();
+	private final AtomicBoolean observerLive = new AtomicBoolean(false);
+	private final AtomicInteger health = new AtomicInteger(1), maxHealth = new AtomicInteger(1);
+	private final AtomicInteger id = new AtomicInteger();
+	private final AtomicInteger viewDistanceLive = new AtomicInteger();
 
 	private static final Transform DEAD = new Transform(Point.invalid, Quaternion.IDENTITY, Vector3.ZERO);
 	private static final long serialVersionUID = 1L;
@@ -525,7 +525,7 @@ public class SpoutEntity implements Entity {
 			if (entityManager != entityManagerLive.get() || controller != controllerLive.get()) {
 				SpoutRegion r = (SpoutRegion) chunk.getRegion();
 				r.removeEntity(this);
-				if (entityManagerLive == null) {
+				if (entityManagerLive.get() == null) {
 					controller.onDeath();
 					if (controller instanceof PlayerController) {
 						Player p = ((PlayerController) controller).getPlayer();
@@ -534,14 +534,14 @@ public class SpoutEntity implements Entity {
 				}
 			}
 		}
-		if (entityManagerLive != null) {
+		if (entityManagerLive.get() != null) {
 			if (entityManager != entityManagerLive.get() || controller != controllerLive.get()) {
 				entityManagerLive.get().allocate(this);
 			}
 		}
 
 		if (chunkLive.get() != chunk) {
-			if (chunkLive != null) {
+			if (chunkLive.get() != null) {
 				((SpoutChunk) chunkLive.get()).addEntity(this);
 				if (observer) {
 					((SpoutChunk) chunkLive.get()).refreshObserver(this);
@@ -553,14 +553,14 @@ public class SpoutEntity implements Entity {
 					((SpoutChunk) chunk).removeObserver(this);
 				}
 			}
-			if (chunkLive == null) {
+			if (chunkLive.get() == null) {
 				if (chunk != null && chunk.isLoaded()) {
 					((SpoutChunk) chunk).removeEntity(this);
 					if (observer) {
 						((SpoutChunk) chunk).removeObserver(this);
 					}
 				}
-				if (entityManagerLive != null) {
+				if (entityManagerLive.get() != null) {
 					entityManagerLive.get().deallocate(this);
 				}
 			}
