@@ -78,14 +78,14 @@ public class SpoutEntity implements Entity {
 	public static final StringMap entityStringMap = new StringMap(null, new MemoryStore<Integer>(), 0, Short.MAX_VALUE);
 
 	//Thread-safe
+	private final AtomicReference<EntityManager> entityManagerLive;
+	private final AtomicReference<Controller> controllerLive;
+	private final AtomicReference<Chunk> chunkLive;
 	private ArrayList<AtomicReference<EntityComponent>> components = new ArrayList<AtomicReference<EntityComponent>>();
 	private AtomicBoolean observerLive = new AtomicBoolean(false);
 	private AtomicInteger health = new AtomicInteger(1), maxHealth = new AtomicInteger(1);
 	private AtomicInteger id = new AtomicInteger();
 	private AtomicInteger viewDistanceLive = new AtomicInteger();
-	private AtomicReference<EntityManager> entityManagerLive;
-	private AtomicReference<Controller> controllerLive;
-	private AtomicReference<Chunk> chunkLive;
 
 	private static final Transform DEAD = new Transform(Point.invalid, Quaternion.IDENTITY, Vector3.ZERO);
 	private static final long serialVersionUID = 1L;
@@ -109,20 +109,24 @@ public class SpoutEntity implements Entity {
 		id.set(NOTSPAWNEDID);
 		this.transform.set(transform);
 
+		chunkLive = new AtomicReference<Chunk>();
+		entityManagerLive = new AtomicReference<EntityManager>();
+
 		if (transform != null) {
-			chunkLive = new AtomicReference<Chunk>(transform.getPosition().getWorld().getChunk(transform.getPosition()));
-			entityManagerLive = new AtomicReference<EntityManager>(((SpoutRegion) chunkLive.get().getRegion()).getEntityManager());
+			chunkLive.set(transform.getPosition().getWorld().getChunk(transform.getPosition()));
+			entityManagerLive.set(((SpoutRegion) chunkLive.get().getRegion()).getEntityManager());
 		}
 
 		map = new GenericDatatableMap();
 		this.viewDistance = viewDistance;
 		viewDistanceLive.set(viewDistance);
+		controllerLive = new AtomicReference<Controller>();
 
 		if (controller != null) {
 			setController(controller);
 		} else {
 			this.controller = controller;
-			controllerLive = new AtomicReference<Controller>(controller);
+			controllerLive.set(controller);
 		}
 	}
 
@@ -452,7 +456,7 @@ public class SpoutEntity implements Entity {
 			newController.attachToEntity(this);
 		}
 		controller = newController;
-		controllerLive = new AtomicReference<Controller>(controller);
+		controllerLive.set(newController);
 
 		if (newController != null) {
 			if (newController instanceof PlayerController) {
@@ -473,8 +477,8 @@ public class SpoutEntity implements Entity {
 		Point p = transform.getPosition();
 		boolean alive = p.getWorld() != null;
 		transform.set(DEAD);
-		chunkLive = null;
-		entityManagerLive = null;
+		chunkLive.set(null);
+		entityManagerLive.set(null);
 		return alive;
 	}
 
