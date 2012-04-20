@@ -14,7 +14,7 @@
  *
  * Spout is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public License,
@@ -56,26 +56,22 @@ import org.spout.api.geo.cuboid.Region;
 import org.spout.api.geo.discrete.Point;
 import org.spout.api.geo.discrete.Transform;
 import org.spout.api.inventory.Inventory;
-import org.spout.api.io.store.simple.MemoryStore;
 import org.spout.api.math.MathHelper;
 import org.spout.api.math.Quaternion;
 import org.spout.api.math.Vector3;
 import org.spout.api.model.Model;
 import org.spout.api.player.Player;
-import org.spout.api.util.StringMap;
 import org.spout.api.util.concurrent.OptimisticReadWriteLock;
 
 import org.spout.engine.SpoutConfiguration;
 import org.spout.engine.SpoutEngine;
 import org.spout.engine.net.SpoutSession;
-import org.spout.engine.player.SpoutPlayer;
 import org.spout.engine.world.SpoutChunk;
 import org.spout.engine.world.SpoutRegion;
 import org.spout.engine.world.SpoutWorld;
 
 public class SpoutEntity implements Entity {
 	public static final int NOTSPAWNEDID = -1;
-	public static final StringMap entityStringMap = new StringMap(null, new MemoryStore<Integer>(), 0, Short.MAX_VALUE);
 
 	//Thread-safe
 	private final AtomicReference<EntityManager> entityManagerLive;
@@ -87,9 +83,8 @@ public class SpoutEntity implements Entity {
 	private final AtomicInteger id = new AtomicInteger();
 	private final AtomicInteger viewDistanceLive = new AtomicInteger();
 
-	private static final Transform DEAD = new Transform(Point.invalid, Quaternion.IDENTITY, Vector3.ZERO);
 	private static final long serialVersionUID = 1L;
-	// TODO - needs to have a world based version too?
+	private static final Transform DEAD = new Transform(Point.invalid, Quaternion.IDENTITY, Vector3.ZERO);
 	private final OptimisticReadWriteLock lock = new OptimisticReadWriteLock();
 	private final Transform transform = new Transform();
 	private boolean justSpawned = true;
@@ -111,6 +106,7 @@ public class SpoutEntity implements Entity {
 
 		chunkLive = new AtomicReference<Chunk>();
 		entityManagerLive = new AtomicReference<EntityManager>();
+		controllerLive = new AtomicReference<Controller>();
 
 		if (transform != null) {
 			chunkLive.set(transform.getPosition().getWorld().getChunk(transform.getPosition()));
@@ -120,22 +116,20 @@ public class SpoutEntity implements Entity {
 		map = new GenericDatatableMap();
 		this.viewDistance = viewDistance;
 		viewDistanceLive.set(viewDistance);
-		controllerLive = new AtomicReference<Controller>();
 
+		//Only call setController if the controller was null (indicates this entity was just created)
 		if (controller != null) {
-			setController(controller);
-		} else {
 			this.controller = controller;
-			controllerLive.set(controller);
+			setController(controller);
 		}
 	}
 
-	public SpoutEntity(SpoutEngine server, Transform transform, Controller controller) {
-		this(server, transform, controller, SpoutConfiguration.VIEW_DISTANCE.getInt() * 16);
+	public SpoutEntity(SpoutEngine engine, Transform transform, Controller controller) {
+		this(engine, transform, controller, SpoutConfiguration.VIEW_DISTANCE.getInt() * SpoutChunk.CHUNK_SIZE);
 	}
 
-	public SpoutEntity(SpoutEngine server, Point point, Controller controller) {
-		this(server, new Transform(point, Quaternion.IDENTITY, Vector3.ONE), controller);
+	public SpoutEntity(SpoutEngine engine, Point point, Controller controller) {
+		this(engine, new Transform(point, Quaternion.IDENTITY, Vector3.ONE), controller);
 	}
 
 	public void onTick(float dt) {
@@ -152,8 +146,8 @@ public class SpoutEntity implements Entity {
 		this.rotate(yaw, 0, 1, 0);
 		this.rotate(pitch, 0, 0, 1);
 
-		if (controllerLive instanceof PlayerController) {
-			Player player = ((PlayerController) controllerLive).getPlayer();
+		if (controllerLive.get() instanceof PlayerController) {
+			Player player = ((PlayerController) controllerLive.get()).getPlayer();
 			if (player != null && player.getSession() != null) {
 				((SpoutSession) player.getSession()).pulse();
 			}
@@ -173,14 +167,13 @@ public class SpoutEntity implements Entity {
 		//Resolve Collisions Here
 		final Point location = this.transform.getPosition();
 
-		//Move the collision volume to the new postion
+		//Move the collision volume to the new position
 		this.collision.setPosition(location);
 
 		List<CollisionVolume> colliding = ((SpoutWorld) location.getWorld()).getCollidingObject(this.collision);
 
 		Vector3 offset = this.lastTransform.getPosition().subtract(location);
 		for (CollisionVolume box : colliding) {
-
 			Vector3 collision = this.collision.resolve(box);
 			if (collision != null) {
 				collision = collision.subtract(location);
@@ -198,9 +191,9 @@ public class SpoutEntity implements Entity {
 				if (this.getCollision().getStrategy() == CollisionStrategy.SOLID && box.getStrategy() == CollisionStrategy.SOLID) {
 					this.setPosition(location.add(offset));
 				}
-				if (this.getController() != null) {
+				if (controllerLive.get() != null) {
 					Block b = this.transform.getPosition().getWorld().getBlock((int) box.getPosition().getX(), (int) box.getPosition().getY(), (int) box.getPosition().getZ());
-					this.getController().onCollide(b.clone());
+					controllerLive.get().onCollide(b.clone());
 				}
 			}
 		}
@@ -213,7 +206,6 @@ public class SpoutEntity implements Entity {
 		return this.owningThread == current || Spout.getEngine().getMainThread() == current;
 	}
 
-	//REGION: Accessors
 	@Override
 	public void translate(Vector3 amount) {
 		if (!isValidAccess()) {
@@ -234,7 +226,7 @@ public class SpoutEntity implements Entity {
 	public void rotate(float ang, float x, float y, float z) {
 		if (!isValidAccess()) {
 			if (Spout.getEngine().debugMode()) {
-				throw new IllegalAccessError("Tried to rotation from another thread {current: " + Thread.currentThread().getPriority() + " owner: " + owningThread.getName() + "}!");
+				throw new IllegalAccessError("Tried to rotate from another thread {current: " + Thread.currentThread().getPriority() + " owner: " + owningThread.getName() + "}!");
 			}
 			return;
 		}
@@ -449,21 +441,15 @@ public class SpoutEntity implements Entity {
 
 	@Override
 	public void setController(Controller controller, Source source) {
-
 		EntityControllerChangeEvent event = Spout.getEventManager().callEvent(new EntityControllerChangeEvent(this, source, controller));
 		Controller newController = event.getNewController();
+		controllerLive.set(controller);
 		if (newController != null) {
-			newController.attachToEntity(this);
-		}
-		controller = newController;
-		controllerLive.set(newController);
-
-		if (newController != null) {
-			if (newController instanceof PlayerController) {
+			controller.attachToEntity(this);
+			if (controller instanceof PlayerController) {
 				setObserver(true);
 			}
-
-			newController.onAttached();
+			controller.onAttached();
 		}
 	}
 
@@ -529,7 +515,7 @@ public class SpoutEntity implements Entity {
 					controller.onDeath();
 					if (controller instanceof PlayerController) {
 						Player p = ((PlayerController) controller).getPlayer();
-						((SpoutPlayer) p).getNetworkSynchronizer().onDeath();
+						p.getNetworkSynchronizer().onDeath();
 					}
 				}
 			}
@@ -544,20 +530,20 @@ public class SpoutEntity implements Entity {
 			if (chunkLive.get() != null) {
 				((SpoutChunk) chunkLive.get()).addEntity(this);
 				if (observer) {
-					((SpoutChunk) chunkLive.get()).refreshObserver(this);
+					chunkLive.get().refreshObserver(this);
 				}
 			}
 			if (chunk != null && chunk.isLoaded()) {
 				((SpoutChunk) chunk).removeEntity(this);
 				if (observer) {
-					((SpoutChunk) chunk).removeObserver(this);
+					chunk.removeObserver(this);
 				}
 			}
 			if (chunkLive.get() == null) {
 				if (chunk != null && chunk.isLoaded()) {
 					((SpoutChunk) chunk).removeEntity(this);
 					if (observer) {
-						((SpoutChunk) chunk).removeObserver(this);
+						chunk.removeObserver(this);
 					}
 				}
 				if (entityManagerLive.get() != null) {
@@ -569,21 +555,27 @@ public class SpoutEntity implements Entity {
 		if (observerLive.get() != observer) {
 			observer = !observer;
 			if (observer) {
-				((SpoutChunk) chunkLive.get()).refreshObserver(this);
+				chunkLive.get().refreshObserver(this);
 			} else {
-				((SpoutChunk) chunkLive.get()).removeObserver(this);
+				chunkLive.get().removeObserver(this);
 			}
 		}
 	}
 
 	public void copyToSnapshot() {
-		chunk = chunkLive.get();
+		if (chunk != chunkLive.get()) {
+			chunk = chunkLive.get();
+		}
 		if (entityManager != entityManagerLive.get()) {
 			entityManager = entityManagerLive.get();
 		}
-		controller = controllerLive.get();
+		if (controller != controllerLive.get()) {
+			controller = controllerLive.get();
+		}
+		if (viewDistance != viewDistanceLive.get()) {
+			viewDistance = viewDistanceLive.get();
+		}
 		justSpawned = false;
-		viewDistance = viewDistanceLive.get();
 	}
 
 	@Override
@@ -647,7 +639,7 @@ public class SpoutEntity implements Entity {
 
 	@Override
 	public boolean is(Class<? extends Controller> clazz) {
-		return clazz.isAssignableFrom(getController().getClass());
+		return clazz.isAssignableFrom(controllerLive.get().getClass());
 	}
 
 	// TODO - datatable and atomics
@@ -747,7 +739,6 @@ public class SpoutEntity implements Entity {
 		return viewDistance;
 	}
 
-	// TODO - needs to make this handle mobile observers
 	@Override
 	public void setObserver(boolean obs) {
 		observerLive.set(obs);
@@ -769,7 +760,7 @@ public class SpoutEntity implements Entity {
 
 	@Override
 	public String toString() {
-		return "SpoutEntity - ID: " + this.getId() + " Controller: " + this.getController() + " Position: " + this.getPosition();
+		return "SpoutEntity - ID: " + this.getId() + " Controller: " + getController() + " Position: " + getPosition();
 	}
 
 	@Override
