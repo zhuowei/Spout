@@ -32,8 +32,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -445,7 +443,7 @@ public class SpoutEngine extends AsyncManager implements Engine {
 		SpoutWorld world = WorldFiles.loadWorldData(this, name, generator);
 		if(world == null) {
 			System.out.println("Creating new world");
-			world = new SpoutWorld(name, this, random.nextLong(), generator);
+			world = new SpoutWorld(name, this, random.nextLong(), generator, null);
 			WorldFiles.saveWorldData(world);
 		}
 		World oldWorld = loadedWorlds.putIfAbsent(name, world);
