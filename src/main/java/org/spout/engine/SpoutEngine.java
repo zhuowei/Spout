@@ -49,6 +49,7 @@ import org.jboss.netty.channel.group.DefaultChannelGroup;
 
 import org.spout.api.ChatColor;
 import org.spout.api.Engine;
+import org.spout.api.Spout;
 import org.spout.api.command.Command;
 import org.spout.api.command.CommandRegistrationsFactory;
 import org.spout.api.command.CommandSource;
@@ -75,6 +76,8 @@ import org.spout.api.geo.cuboid.Region;
 import org.spout.api.geo.discrete.Point;
 import org.spout.api.inventory.CommonRecipeManager;
 import org.spout.api.inventory.RecipeManager;
+import org.spout.api.io.store.simple.BinaryFileStore;
+import org.spout.api.material.MaterialRegistry;
 import org.spout.api.permissions.DefaultPermissions;
 import org.spout.api.permissions.PermissionsSubject;
 import org.spout.api.player.Player;
@@ -88,6 +91,7 @@ import org.spout.api.plugin.ServiceManager;
 import org.spout.api.plugin.security.CommonSecurityManager;
 import org.spout.api.protocol.SessionRegistry;
 import org.spout.api.protocol.bootstrap.BootstrapProtocol;
+import org.spout.api.util.StringMap;
 
 import org.spout.engine.command.AdministrationCommands;
 import org.spout.engine.command.MessagingCommands;
@@ -148,6 +152,7 @@ public class SpoutEngine extends AsyncManager implements Engine {
 	private SnapshotableReference<World> defaultWorld = new SnapshotableReference<World>(snapshotManager, null);
 	private SpoutPlayer[] emptyPlayerArray = new SpoutPlayer[0];
 	private String logFile;
+	private StringMap engineItemMap = null;
 	
 	@Parameter(names = {"-debug", "-d", "--debug", "--d" }, description="Debug Mode")
 	private boolean debugMode = false;
@@ -187,6 +192,9 @@ public class SpoutEngine extends AsyncManager implements Engine {
 			getLogger().log(Level.SEVERE, "Error loading config: {0}", e);
 		}
 		consoleManager.setupConsole(SpoutConfiguration.CONSOLE_TYPE.getString());
+		
+		//Setup the Material Registry
+		engineItemMap = MaterialRegistry.setupRegistry();
 
 		// Start loading plugins
 		loadPlugins();
@@ -440,10 +448,15 @@ public class SpoutEngine extends AsyncManager implements Engine {
 			generator = defaultGenerator;
 		}
 
-		SpoutWorld world = WorldFiles.loadWorldData(this, name, generator);
+		SpoutWorld world = WorldFiles.loadWorldData(this, name, generator, engineItemMap);
 		if(world == null) {
-			System.out.println("Creating new world");
-			world = new SpoutWorld(name, this, random.nextLong(), generator, null);
+			Spout.getLogger().info("Generating new world named [" + name + "]");
+			
+			File itemMapFile = new File(new File(FileSystem.WORLDS_DIRECTORY, name), "items.dat");
+			BinaryFileStore itemStore = new BinaryFileStore(itemMapFile);
+			StringMap itemMap = new StringMap(engineItemMap, itemStore, 0, Short.MAX_VALUE);
+			
+			world = new SpoutWorld(name, this, random.nextLong(), generator, itemMap, null);
 			WorldFiles.saveWorldData(world);
 		}
 		World oldWorld = loadedWorlds.putIfAbsent(name, world);
