@@ -608,14 +608,20 @@ public final class SpoutWorld extends AsyncManager implements World {
 		return Collections.unmodifiableSet(players);
 	}
 
-	public List<CollisionVolume> getCollidingObject(CollisionModel model) {
+	public List<CollisionVolume> getCollidingObject(final Entity test, CollisionModel model) {
 		//TODO Make this more general
-		final int minX = MathHelper.floor(model.getPosition().getX());
-		final int minY = MathHelper.floor(model.getPosition().getY());
-		final int minZ = MathHelper.floor(model.getPosition().getZ());
+		final Vector3 bounds = model.getVolume().getPosition();
+		final int minX = MathHelper.floor(bounds.getX());
+		final int minY = MathHelper.floor(bounds.getY());
+		final int minZ = MathHelper.floor(bounds.getZ());
 		final int maxX = minX + 1;
 		final int maxY = minY + 1;
 		final int maxZ = minZ + 1;
+
+		Spout.log("Model Controller: " + test.getController().toString());
+		Spout.log("Controller Position: " + test.getPosition().toString());
+		Spout.log("Collision Model Position: " + minX + " " + minY + " " + minZ);
+		Spout.log("Collision Strategy: " + model.getStrategy());
 
 		final LinkedList<CollisionVolume> colliding = new LinkedList<CollisionVolume>();
 
@@ -625,8 +631,15 @@ public final class SpoutWorld extends AsyncManager implements World {
 			for (int dy = minY - 1; dy < maxY; dy++) {
 				for (int dz = minZ; dz < maxZ; dz++) {
 					BlockMaterial material = this.getBlockMaterial(dx, dy, dz);
+
+					Spout.log("Collision Material: " + material.toString());
+					Spout.log("Collision Model Bounding Box: " + model.getVolume().toString());
+					Spout.log("Collision Material Bounding Box: " + material.getBoundingArea().toString());
+
 					mutable.set((BoundingBox) material.getBoundingArea());
 					BoundingBox box = mutable.offset(dx, dy, dz);
+
+					Spout.log("Offset Material Bounding Box: " + box.toString());
 					if (box.intersects(model.getVolume())) {
 						colliding.add(mutable.clone());
 					}
