@@ -106,7 +106,6 @@ public class SpoutPlayer implements Player {
 		return entity;
 	}
 
-	@Override
 	@SnapshotRead
 	public SpoutSession getSession() {
 		return session;
@@ -190,7 +189,7 @@ public class SpoutPlayer implements Player {
 
 	@Override
 	public boolean sendRawMessage(String message) {
-		Message chatMessage = getSession().getPlayerProtocol().getChatMessage(message);
+		Message chatMessage = session.getPlayerProtocol().getChatMessage(message);
 		if (message != null) {
 			session.send(chatMessage);
 			return true;

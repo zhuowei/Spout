@@ -65,6 +65,7 @@ import java.util.logging.StreamHandler;
 
 import com.grahamedgecombe.jterminal.JTerminal;
 
+import jline.ANSIBuffer;
 import jline.ArgumentCompletor;
 import jline.Completor;
 import jline.ConsoleOperations;

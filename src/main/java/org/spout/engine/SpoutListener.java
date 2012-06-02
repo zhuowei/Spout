@@ -58,8 +58,8 @@ public class SpoutListener implements Listener {
 			return;
 		}
 		//Create the player
-		final Player player = server.addPlayer(event.getPlayerName(), (SpoutSession) event.getSession());
-
+		SpoutSession session = (SpoutSession) event.getSession();
+		final Player player = server.addPlayer(event.getPlayerName(), session);
 		if (player != null) {
 			PlayerLoadEvent loadEvent = Spout.getEngine().getEventManager().callEvent(new PlayerLoadEvent(player));
 			if (!loadEvent.isLoaded()) {
@@ -73,6 +73,7 @@ public class SpoutListener implements Listener {
 					player.kick();
 				}
 			} else {
+				session.getProtocol().initializePlayer(player, session);
 				Spout.getEngine().getEventManager().callDelayedEvent(new PlayerJoinEvent(player, ChatColor.CYAN + player.getDisplayName() + ChatColor.CYAN + " has joined the game"));
 			}
 		} else {

@@ -371,4 +371,8 @@ public final class SpoutSession implements Session {
 	public boolean isConnected() {
 		return channel.isOpen();
 	}
+
+	public Protocol getProtocol() {
+		return protocol.get();
+	}
 }
