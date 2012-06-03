@@ -49,7 +49,7 @@ public final class SpoutSessionRegistry implements SessionRegistry {
 	public void pulse() {
 		for (SpoutSession session : sessions.keySet()) {
 			Player player = session.getPlayer();
-			if (player == null || player.getEntity() == null || player.getEntity().isDead()) {
+			if (true|| player == null || player.getEntity() == null || player.getEntity().isDead()) {
 				session.pulse();
 			}
 		}

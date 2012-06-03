@@ -46,9 +46,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.group.ChannelGroup;
 import org.jboss.netty.channel.group.DefaultChannelGroup;
 import org.spout.api.ChatColor;
+import org.spout.api.Client;
 import org.spout.api.Engine;
 import org.spout.api.FileSystem;
 import org.spout.api.Spout;
@@ -92,6 +94,7 @@ import org.spout.api.plugin.Plugin;
 import org.spout.api.plugin.PluginManager;
 import org.spout.api.plugin.ServiceManager;
 import org.spout.api.plugin.security.CommonSecurityManager;
+import org.spout.api.protocol.Session;
 import org.spout.api.protocol.SessionRegistry;
 import org.spout.api.protocol.bootstrap.BootstrapProtocol;
 import org.spout.api.util.StringMap;
@@ -210,8 +213,8 @@ public class SpoutEngine extends AsyncManager implements Engine {
 		// Start loading plugins
 		loadPlugins();
 		enablePlugins();
-		//At least one plugin should have registered atleast one world
-		if (loadedWorlds.getLive().size() == 0) {
+		//At least one plugin should have registered at least one world
+		if (loadedWorlds.getLive().size() == 0 && !(this instanceof Client)) {
 			throw new IllegalStateException("There are no loaded worlds!  You must install a plugin that creates a world (Did you forget Vanilla?)");
 		}
 
@@ -782,7 +785,7 @@ public class SpoutEngine extends AsyncManager implements Engine {
 	}
 
 	/**
-	 * Gets the biome map used accorss all worlds on the engine
+	 * Gets the biome map used across all worlds on the engine
 	 *
 	 * @return biome map
 	 */
@@ -797,5 +800,11 @@ public class SpoutEngine extends AsyncManager implements Engine {
 	@Override
 	public FileSystem getFilesystem() {
 		return filesystem;
+	}
+
+	@Override
+	public Session newSession(Channel channel) {
+		BootstrapProtocol protocol = getBootstrapProtocol(channel.getLocalAddress());
+		return new SpoutSession(this, channel, protocol);
 	}
 }

@@ -33,6 +33,7 @@ import static org.lwjgl.opengl.GL11.glClear;
 import java.awt.Color;
 import java.io.File;
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.net.URISyntaxException;
 import java.security.CodeSource;
 import java.util.logging.Level;
@@ -47,9 +48,18 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.PixelFormat;
+import org.jboss.netty.bootstrap.ClientBootstrap;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFactory;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelFutureListener;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.spout.api.Client;
 import org.spout.api.Spout;
 import org.spout.api.entity.Entity;
+import org.spout.api.event.client.ConnectionOpenEvent;
+import org.spout.api.exception.SpoutRuntimeException;
 import org.spout.api.geo.World;
 import org.spout.api.geo.cuboid.ChunkSnapshot;
 import org.spout.api.gui.screen.ScreenStack;
@@ -59,6 +69,10 @@ import org.spout.api.math.Matrix;
 import org.spout.api.math.Vector2;
 import org.spout.api.math.Vector3;
 import org.spout.api.plugin.PluginStore;
+import org.spout.api.protocol.CommonHandler;
+import org.spout.api.protocol.CommonPipelineFactory;
+import org.spout.api.protocol.Session;
+import org.spout.api.protocol.bootstrap.BootstrapProtocol;
 import org.spout.api.render.BasicCamera;
 import org.spout.api.render.Camera;
 import org.spout.api.render.RenderMaterial;
@@ -70,6 +84,8 @@ import org.spout.engine.batcher.PrimitiveBatch;
 import org.spout.engine.filesystem.ClientFileSystem;
 import org.spout.engine.filesystem.SharedFileSystem;
 import org.spout.engine.mesh.BaseMesh;
+import org.spout.engine.player.SpoutPlayer;
+import org.spout.engine.protocol.SpoutSession;
 import org.spout.engine.renderer.BatchVertexRenderer;
 import org.spout.engine.util.RenderModeConverter;
 import org.spout.engine.world.SpoutChunk;
@@ -81,6 +97,15 @@ import com.beust.jcommander.Parameter;
 
 public class SpoutClient extends SpoutEngine implements Client {
 	private final String name = "Spout Client";
+
+	private BootstrapProtocol clientBootstrapProtocol;
+
+	private Channel serverChannel;
+
+	private Session serverSession;
+
+	/** the client bootstrap used to initialize connections */
+	private ClientBootstrap bootstrap = new ClientBootstrap();
 
 	private Camera activeCamera;
 	private final Vector2 resolution = new Vector2(854, 480);
@@ -125,7 +150,11 @@ public class SpoutClient extends SpoutEngine implements Client {
 	@Override
 	public void init(String[] args) {
 		super.init(args);
-		
+		ChannelFactory factory = new NioClientSocketChannelFactory(executor, executor);
+		bootstrap.setFactory(factory);
+
+		ChannelPipelineFactory pipelineFactory = new CommonPipelineFactory(this);
+		bootstrap.setPipelineFactory(pipelineFactory);
 	}
 
 	@Override
@@ -505,4 +534,46 @@ public class SpoutClient extends SpoutEngine implements Client {
 		super.stop();
 	}
 
+	public void connect(SocketAddress address) {
+		ChannelFuture future = bootstrap.connect(address);
+		/*future.addListener(new ChannelFutureListener() {
+			public void operationComplete(ChannelFuture channelFuture) {
+				if (channelFuture.isSuccess()) {
+					//todo: throw an event
+					serverChannel = channelFuture.getChannel();
+					Session session = (Session) serverChannel.getPipeline().getContext(CommonHandler.class).getAttachment();
+					serverSession = session;
+					getScheduler().scheduleSyncDelayedTask(SpoutClient.this, new Runnable() {
+						public void run() {
+							getEventManager().callEvent(new ConnectionOpenEvent(serverSession));
+						}
+					});
+				}
+			}
+		});*/
+					
+	}
+
+	@Override
+	public BootstrapProtocol getBootstrapProtocol(SocketAddress socketAddress) {
+		return clientBootstrapProtocol;
+	}
+
+	public void setBootstrapProtocol(BootstrapProtocol clientBootstrapProtocol) {
+		this.clientBootstrapProtocol = clientBootstrapProtocol;
+	}
+
+	@Override
+	public Session newSession(Channel channel) {
+		Session session = super.newSession(channel); //FIXME: proper way to get the Session object
+		serverSession = session;
+		addPlayer("Player", (SpoutSession) session);
+		sessions.add(session);
+		getScheduler().scheduleSyncDelayedTask(SpoutClient.this, new Runnable() {
+			public void run() {
+				getEventManager().callEvent(new ConnectionOpenEvent(serverSession));
+			}
+		});
+		return session;
+	}
 }

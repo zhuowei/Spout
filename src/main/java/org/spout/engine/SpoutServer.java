@@ -259,12 +259,6 @@ public class SpoutServer extends SpoutEngine implements Server {
 	}
 
 	@Override
-	public Session newSession(Channel channel) {
-		BootstrapProtocol protocol = getBootstrapProtocol(channel.getLocalAddress());
-		return new SpoutSession(this, channel, protocol);
-	}
-
-	@Override
 	public String getName() {
 		return name;
 	}

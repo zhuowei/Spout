@@ -110,7 +110,7 @@
 	<build>
 		<defaultGoal>clean install</defaultGoal>
 		<!-- Resources -->
-		<resources>
+		<!--<resources>
 			<resource>
 				<targetPath>.</targetPath>
 				<filtering>false</filtering>
@@ -119,7 +119,7 @@
 					<include>LICENSE.txt</include>
 				</includes>
 			</resource>
-		</resources>
+		</resources>-->
 		<!-- Plugins -->
 		<plugins>
 			<!-- License header formatting plugin -->

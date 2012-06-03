@@ -52,7 +52,7 @@ import org.spout.api.protocol.Protocol;
 import org.spout.api.protocol.Session;
 import org.spout.api.protocol.bootstrap.BootstrapProtocol;
 
-import org.spout.engine.SpoutServer;
+import org.spout.engine.SpoutEngine;
 import org.spout.engine.player.SpoutPlayer;
 import org.spout.engine.world.SpoutWorld;
 
@@ -70,7 +70,7 @@ public final class SpoutSession implements Session {
 	/**
 	 * The server this session belongs to.
 	 */
-	private final SpoutServer server;
+	private final SpoutEngine server;
 	/**
 	 * The Random for this session
 	 */
@@ -121,7 +121,7 @@ public final class SpoutSession implements Session {
 	 * @param server  The server this session belongs to.
 	 * @param channel The channel associated with this session.
 	 */
-	public SpoutSession(SpoutServer server, Channel channel, BootstrapProtocol bootstrapProtocol) {
+	public SpoutSession(SpoutEngine server, Channel channel, BootstrapProtocol bootstrapProtocol) {
 		this.server = server;
 		this.channel = channel;
 		protocol = new AtomicReference<Protocol>(bootstrapProtocol);
@@ -182,6 +182,9 @@ public final class SpoutSession implements Session {
 
 		while ((message = messageQueue.poll()) != null) {
 			MessageHandler<Message> handler = (MessageHandler<Message>) protocol.get().getHandlerLookupService().find(message.getClass());
+			if (Spout.debugMode()) {
+				Spout.getEngine().getLogger().info("Received message: " + message.toString() + " for " + this.toString());
+			}
 			if (handler != null) {
 				try {
 					handler.handle(this, player, message);
@@ -209,6 +212,9 @@ public final class SpoutSession implements Session {
 		try {
 			if (force || this.state == State.GAME) {
 				if (channel.isOpen()) {
+					if (Spout.debugMode()) {
+						Spout.getEngine().getLogger().info("Sending message: " + message.toString() + " for " + this.toString());
+					}
 					channel.write(message);
 				}
 			} else {
@@ -264,9 +270,9 @@ public final class SpoutSession implements Session {
 	 * Gets the server associated with this session.
 	 * @return The server.
 	 */
-	public SpoutServer getServer() {
+	/*public SpoutServer getServer() {
 		return server;
-	}
+	}*/
 
 	/**
 	 * Returns the address of this session.
@@ -352,6 +358,11 @@ public final class SpoutSession implements Session {
 		if (!this.protocol.compareAndSet(bootstrapProtocol, protocol)) {
 			throw new IllegalArgumentException("The protocol may only be set once per session");
 		} else {
+			try {
+				throw new Exception("herp");
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 			server.getLogger().info("Setting protocol to " + protocol.getName());
 		}
 	}
