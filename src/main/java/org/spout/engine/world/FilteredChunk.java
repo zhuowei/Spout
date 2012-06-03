@@ -29,6 +29,7 @@ package org.spout.engine.world;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.spout.api.Source;
@@ -40,13 +41,19 @@ import org.spout.api.geo.cuboid.ChunkSnapshot;
 import org.spout.api.material.BlockMaterial;
 import org.spout.api.material.block.BlockFullState;
 import org.spout.api.math.Vector3;
+import org.spout.api.util.map.concurrent.AtomicBlockStore;
 import org.spout.api.util.map.concurrent.AtomicBlockStoreImpl;
+import org.spout.api.util.map.concurrent.AtomicSliceStore;
 import org.spout.engine.filesystem.WorldFiles;
 
 public class FilteredChunk extends SpoutChunk{
-	private final AtomicBoolean uniform;
+	private final AtomicBoolean uniform = new AtomicBoolean(true);
 	private final AtomicInteger uniformId = new AtomicInteger(0);
 	private final AtomicReference<BlockMaterial> material = new AtomicReference<BlockMaterial>(null);
+	
+	private final AtomicBoolean sliced = new AtomicBoolean(false);
+	private AtomicBlockStore[] slicedStores = null;
+	private AtomicIntegerArray slices = new AtomicIntegerArray(CHUNK_SIZE);
 
 	protected final static byte[] DARK = new byte[Chunk.CHUNK_VOLUME / 2];
 	protected final static byte[] LIGHT = new byte[Chunk.CHUNK_VOLUME / 2];
@@ -62,12 +69,22 @@ public class FilteredChunk extends SpoutChunk{
 	public FilteredChunk(SpoutWorld world, SpoutRegion region, float x, float y, float z, boolean populated, short[] blocks, short[] data, byte[] skyLight, byte[] blockLight, BiomeManager manager, DatatableMap extraData) {
 		super(world, region, x, y, z, populated, blocks, data, skyLight, blockLight, manager, extraData);
 
-		uniform = new AtomicBoolean(true);
 		short id = blocks[0];
-		for (int i = 1; i < blocks.length; i++) {
-			if (id != blocks[i]) {
-				uniform.set(false);
-				break;
+		boolean[] uniformSlices = new boolean[CHUNK_SIZE];
+		for (int i = 0; i < uniformSlices.length; i++) {
+			uniformSlices[i] = true;
+		}
+
+		for (int dy = 0; dy < CHUNK_SIZE; dy++) {
+	slice:	for (int dx = 0; dx < CHUNK_SIZE; dx++) {
+				for (int dz = 0; dz < CHUNK_SIZE; dz++) {
+					int index = getBlockIndex(dx, dy, dz);
+					if (id != blocks[index]) {
+						uniform.set(false);
+						uniformSlices[dy] = false;
+						break slice;
+					}
+				}
 			}
 		}
 
@@ -77,11 +94,37 @@ public class FilteredChunk extends SpoutChunk{
 			this.blockStore = null;
 			this.skyLight = null;
 			this.blockLight = null;
+		} else {
+			for (int i = 0; i < uniformSlices.length; i++) {
+				if (uniformSlices[i]) {
+					sliced.set(true);
+					break;
+				}
+			}
+			
+			if (sliced.get()) {
+				slicedStores = new AtomicBlockStore[CHUNK_SIZE];
+				for (int i = 0; i < slicedStores.length; i++) {
+					if (uniformSlices[i]) {
+						slices.set(i, blocks[getBlockIndex(0, i, 0)]);
+					} else {
+						slicedStores[i] = new AtomicSliceStore(CHUNK_SIZE, 3);
+						for (int dx = 0; dx < CHUNK_SIZE; dx++) {
+							for (int dz = 0; dz < CHUNK_SIZE; dz++) {
+								short d = data != null ? data[getBlockIndex(dx, i, dz)] : 0;
+								slicedStores[i].setBlock(dx, i, dz, blocks[getBlockIndex(dx, i, dz)], d);
+							}
+						}
+					}
+				}
+				
+				this.blockStore = null;
+			}
 		}
 	}
 
 	private synchronized void initialize() {
-		if (uniform.get()) {
+		if (uniform.compareAndSet(true, false)) {
 			short[] initial = new short[Chunk.CHUNK_VOLUME];
 			short id = (short)uniformId.get();
 			for (int i = 0; i < initial.length; i++) {
@@ -94,8 +137,6 @@ public class FilteredChunk extends SpoutChunk{
 			
 			this.blockLight = new byte[CHUNK_VOLUME / 2];
 			System.arraycopy(DARK, 0, this.blockLight, 0, this.blockLight.length);
-			
-			uniform.set(false);
 		}
 	}
 

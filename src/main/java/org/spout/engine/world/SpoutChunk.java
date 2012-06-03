@@ -215,9 +215,13 @@ public class SpoutChunk extends Chunk {
 	public SpoutWorld getWorld() {
 		return (SpoutWorld) super.getWorld();
 	}
-
+	
 	@Override
 	public boolean setBlockData(int x, int y, int z, short data, Source source) {
+		return setBlockData(x, y, z, data, source, blockStore);
+	}
+
+	protected boolean setBlockData(int x, int y, int z, short data, Source source, AtomicBlockStore blockStore) {
 		if (source == null) {
 			throw new NullPointerException("Source can not be null");
 		}
@@ -259,10 +263,10 @@ public class SpoutChunk extends Chunk {
 		if (source == null) {
 			throw new NullPointerException("Source can not be null");
 		}
-		return setBlockMaterial(x, y, z, material, data, source, true);
+		return setBlockMaterial(x, y, z, material, data, source, blockStore, true);
 	}
 
-	private boolean setBlockMaterial(int x, int y, int z, BlockMaterial material, short data, Source source, boolean event) {
+	protected boolean setBlockMaterial(int x, int y, int z, BlockMaterial material, short data, Source source, AtomicBlockStore blockStore, boolean event) {
 		x &= BASE_MASK;
 		y &= BASE_MASK;
 		z &= BASE_MASK;
@@ -351,7 +355,7 @@ public class SpoutChunk extends Chunk {
 		for (int dx = startX; dx < endX; dx++) {
 			for (int dy = startY; dy < endY; dy++) {
 				for (int dz = startZ; dz < endZ; dz++) {
-					setBlockMaterial(dx, dy, dz, BlockMaterial.get(buffer.get(dx, dy, dz)), (short)0, null, false);
+					setBlockMaterial(dx, dy, dz, BlockMaterial.get(buffer.get(dx, dy, dz)), (short)0, null, blockStore, false);
 				}
 			}
 		}
@@ -502,7 +506,7 @@ public class SpoutChunk extends Chunk {
 		this.getRegion().updateBlockPhysics(x, y, z, source);
 	}
 
-	private int getBlockIndex(int x, int y, int z) {
+	protected int getBlockIndex(int x, int y, int z) {
 		return (y & BASE_MASK) << 8 | (z & BASE_MASK) << 4 | (x & BASE_MASK);
 	}
 
